@@ -99,43 +99,49 @@ void	pt_load_injection(void *fmmap, uint64_t original_entrypoint, Elf64_Ehdr *eh
 	pheader->p_memsz += TOTAL_PAYLOAD_SIZE;
 }
 
-void	payload_injection(void *fmmap)
+int	try_inject_payload(void *fmmap, Elf64_Phdr* pheader)
 {
-	Elf64_Ehdr	*eheader;
-	Elf64_Phdr *pheader, *next;
-	uint64_t original_entrypoint;
-
-
-	eheader = fmmap;
-	original_entrypoint = eheader->e_entry;
-	//iterate through segments until we find a RE PT_LOAD
-	pheader = fmmap + eheader->e_phoff;
-	for (int i = 0; i < eheader->e_phnum; i++ )
-	{
-		if (pheader->p_type == PT_LOAD)
-		{
-			if ((pheader->p_flags & PF_X) && (pheader->p_flags & PF_R))
-			{
-				break ;
-			}
-		}
-		pheader++;
-	}
+	Elf64_Ehdr	*eheader = (Elf64_Ehdr *)fmmap;
+	Elf64_Phdr	*next = pheader + 1;
+	const uint64_t original_entrypoint = eheader->e_entry;
 
 	if (pheader->p_type == PT_LOAD)
 	{
-		next = pheader + 1;
 		if (next && next->p_type == PT_LOAD && THERE_IS_ENOUGH_FREE_SPACE(next->p_offset - (pheader->p_offset + pheader->p_filesz)))
 		{
 			printf("Injection in RE PT_LOAD padding possible: %lu bytes free\n", next->p_offset - (pheader->p_offset + pheader->p_filesz));
 			pt_load_injection(fmmap, original_entrypoint, eheader, pheader);
+			return (1);
 		}
 		else if ( 0 ) //if the next segment is a PT_NOTE
 		{
 			printf("there is not enough space in RE PT_LOAD padding\n");
 		}
 	}
+	return (0);
 }
+
+void	payload_injection(void *fmmap)
+{
+	Elf64_Ehdr	*eheader;
+	Elf64_Phdr	*pheader;
+
+	eheader = fmmap;
+	//iterate through segments until we find a RE PT_LOAD
+	pheader = fmmap + eheader->e_phoff;
+	for (int i = 0; i < eheader->e_phnum; i++ )
+	{
+		if (pheader->p_type == PT_LOAD)
+		{
+			if ((pheader->p_flags & PF_X) && (pheader->p_flags & PF_R) && try_inject_payload(fmmap, pheader))
+			{
+				return;
+			}
+		}
+		pheader++;
+	}
+}
+
 int				text_section_offset(void *fmmap)
 {
 	Elf64_Ehdr	*eheader;
