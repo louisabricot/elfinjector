@@ -22,38 +22,32 @@ void	ksa(byte* S, const byte* key, const size_t key_length) {
 	}
 
 	for (int i = 0; i < N; i++) {
-		j = (j + S[i] + key[i % key_length]) % N;
+		j = (j + S[i] + key[i % key_length]) & 0xFF;
 		swap(&S[i], &S[j]);
 	}
 }
 
 // Pseudo-Random Generation Algorithm (PRGA)
-void	prga(byte* S, const byte* plaintext, byte* ciphertext, const size_t length) {
-	int i = 0;
-	int j = 0;
+void	prga(byte* S, byte* plaintext, const size_t length) {
+	size_t i = 0;
+	size_t j = 0;
 
 	for (size_t n = 0; n < length; n++) {
-		i = (i + 1) % N;
-		j = (j + S[i]) % N;
+		i = (i + 1) & 0xFF;
+		j = (j + S[i]) & 0xFF;
 		swap(&S[i], &S[j]);
-		const int K = S[(S[i] + S[j]) % N];
+		const int K = S[(S[i] + S[j]) & 0xFF];
 
-		ciphertext[n] = K ^ plaintext[n];
+		plaintext[n] ^= K;
 	}
 }
 
-byte* rc4(const byte* key, const size_t key_length, const byte* plaintext, const size_t text_length) {
-	byte*	ciphertext = malloc(sizeof(byte) * text_length);
-	byte*	S = malloc(sizeof(byte) * N);
-	
-	if (!ciphertext || !S) {
-		exit(1);
-	}
+byte* rc4(const byte* key, const size_t key_length, byte* plaintext, const size_t text_length) {
+	byte S[N];
 
 	ksa(S, key, key_length);
-	prga(S, plaintext, ciphertext, text_length);
-	free(S);
-	return (ciphertext);
+	prga(S, plaintext, text_length);
+	return (plaintext);
 }
 
 int main(int argc, char** argv) {
