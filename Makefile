@@ -12,7 +12,9 @@ INC_DIR = ./inc
 SRC_DIR = ./src
 OBJ_DIR = ./obj
 
-SRCS = main.c
+SRCS = main.c \
+       injection.c \
+       crypter.c \
 
 vpath %.c $(SRC_DIR)
 vpath %.s $(SRC_DIR)
