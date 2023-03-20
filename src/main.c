@@ -11,7 +11,7 @@ static void	create_woody(void *fmap, const int fsize)
 		exit(ERROR);
 	}
 
-	//map fmap to woody file
+	//Map fmap to woody file
 	if (write(fd, fmap, fsize) == ERROR) {
 		close(fd);
 		munmap(fmap, fsize);
@@ -22,12 +22,12 @@ static void	create_woody(void *fmap, const int fsize)
 	close(fd);
 }
 
-static void		*mapbin(char *bin, int *fsize)
+static void		*map_binary(void *binary, off_t *fsize)
 {
 	void		*map;
 	int			fd;
 
-	fd = open(bin, O_RDONLY);
+	fd = open(binary, O_RDONLY);
 	if (fd == ERROR)
 	{
 		dprintf(STDERR_FILENO, "open: %s\n", strerror(errno));	
@@ -68,15 +68,28 @@ static int		is_ELF64(void *fmap)
 	Elf64_Ehdr	*eheader;
 
 	eheader = (Elf64_Ehdr *)fmap;
-	if (memcmp(ELFMAG, eheader->e_ident, ELFMAGSIZE) == 0 && (int)(eheader->e_ident[EI_CLASS]) == ELFCLASS64)
+	if (memcmp(ELFMAG, eheader->e_ident, SELFMAG) == 0 && (int)(eheader->e_ident[EI_CLASS]) == ELFCLASS64)
 		return 1;
 	return 0;
+}
+
+static int		is_already_injected(void *fmap)
+{
+	Elf64_Ehdr	*eheader;
+	int			magic;
+
+	eheader = (Elf64_Ehdr *)fmap;
+	magic = MAGIC_NUMBER;
+
+	if (memcmp(&(eheader->e_ident[EI_PAD]), &magic, sizeof(int)) == SUCCESS)
+		return (1);
+	return (0);
 }
 
 int		main(int ac, char **av)
 {
 	void	*fmap;
-	int		fsize;
+	off_t	fsize;
 
 	if (ac != 2)
 	{
@@ -84,18 +97,23 @@ int		main(int ac, char **av)
 		return (ERROR);
 	}
 	
-	//Map file into memory
-	fmap = mapbin(av[1], &fsize);
+	fmap = map_binary(av[1], &fsize);
 	if (!is_ELF64(fmap))
 	{
 		munmap(fmap, fsize);
 		dprintf(STDERR_FILENO, "%s not a ELF64 file\n", av[1]);
-		return ERROR;
+		return (ERROR);
 	}
 
-	payload_injection(fmap);
-	
-	create_woody(fmap, fsize);
-	
-	return SUCCESS;
+	if (is_already_injected(fmap))
+	{
+		munmap(fmap, fsize);
+		dprintf(STDERR_FILENO, "%s has already been injected\n", av[1]);
+		return (ERROR);
+	}
+
+	if (inject(fmap) == SUCCESS)
+		create_woody(fmap, fsize);
+	munmap(fmap, fsize);
+	return (0);
 }
